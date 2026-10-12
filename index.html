@@ -16,7 +16,7 @@
 <div class="toolbar"><input class="search" id="search" placeholder="ابحث باسم الفرد..." aria-label="بحث باسم الفرد"><button class="btn" id="restoreBtn">استعادة نسخة</button><input type="file" id="restoreFile" accept="application/json" hidden><button class="btn" id="clearSearch">مسح البحث</button></div>
 <div class="section"><h2>أفراد العائلة والمستندات</h2><span class="pill">حفظ تلقائي على هذا الجهاز</span></div><div class="people" id="people"></div><div class="foot">مستمسك برو © <span id="year"></span> · Karrar Khariy</div></main>
 <div class="bottom"><button class="btn" id="addPerson">＋ إضافة فرد</button><button class="btn primary" id="printBtn">▤ تجهيز A4 / طباعة</button><button class="btn" id="exportBtn">↓ تصدير البيانات</button></div><div class="toast" id="toast"></div>
-<div class="modal" id="modal"><div class="modal-card"><h3 id="modalTitle">الاستلام الذكي</h3><p id="modalText">ميزة QR تحتاج إلى تحديد طريقة آمنة لمشاركة الملفات. هذا الإصدار لا يرفع المستندات إلى خادم.</p><div class="qrbox" id="modalExtra">للمحافظة على خصوصية المستمسكات، لا يتم إنشاء رابط عام للصور الشخصية.</div><div class="modal-actions"><button class="btn" id="closeModal">إغلاق</button><button class="btn primary" id="modalAction">معلومات</button></div></div></div>
+
 <script>
 (()=>{'use strict';
 const DB_NAME='mustamsak-pro-web', DB_VERSION=1, STORE='state'; let db=null; let state={people:[{id:makeId(),name:'رب الأسرة',docs:{}}]}; let search='';
@@ -28,16 +28,39 @@ const docs=[['natFront','البطاقة الوطنية','الوجه الأمام
 const $=id=>document.getElementById(id);function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function updateStats(){ $('peopleCount').textContent=state.people.length;$('docsCount').textContent=state.people.reduce((n,p)=>n+Object.keys(p.docs||{}).filter(k=>p.docs[k]).length,0); }
-function render(){const root=$('people');root.innerHTML='';const people=state.people.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));if(!people.length){root.innerHTML='<div class="empty">ما لقينا فرد بهذا الاسم.</div>';updateStats();return;}people.forEach((p,index)=>{const card=document.createElement('article');card.className='person';card.innerHTML=`<div class="person-head"><div class="avatar">♙</div><div class="person-name"><input aria-label="اسم الفرد" value="${esc(p.name)}" data-name="${p.id}" maxlength="60"><small>فرد العائلة ${state.people.indexOf(p)+1}</small></div>${state.people.length>1?`<button class="icon-btn" title="حذف الفرد" aria-label="حذف الفرد" data-delete="${p.id}">×</button>`:''}</div><div class="docs">${docs.map(d=>{const src=p.docs[d[0]]||'';return `<label class="doc ${src?'has-image':''}" title="${d[1]} - ${d[2]}"><input type="file" accept="image/*" data-person="${p.id}" data-doc="${d[0]}"><img alt="معاينة ${d[1]} ${d[2]}" ${src?`src="${src}"`:''}><span class="placeholder"><span class="glyph">${d[3]}</span><strong>${d[1]}</strong><small>${d[2]}</small></span></label>`}).join('')}</div>`;root.appendChild(card)});updateStats();}
-$('people').addEventListener('change',e=>{const input=e.target;if(input.matches('input[type=file][data-person]')){const file=input.files&&input.files[0];if(!file)return;if(!file.type.startsWith('image/')){toast('اختَر ملف صورة من فضلك.');return;}if(file.size>12*1024*1024){toast('الصورة أكبر من 12 ميغابايت. اختَر صورة أصغر.');return;}const p=state.people.find(x=>x.id===input.dataset.person);if(!p)return;const reader=new FileReader();reader.onload=()=>{p.docs[input.dataset.doc]=reader.result;save();render();toast('تمت إضافة الصورة وحفظها على هذا الجهاز.');};reader.onerror=()=>toast('تعذرت قراءة الصورة.');reader.readAsDataURL(file)}});
-$('people').addEventListener('input',e=>{if(e.target.matches('[data-name]')){const p=state.people.find(x=>x.id===e.target.dataset.name);if(p){p.name=e.target.value;save();}}});
-$('people').addEventListener('click',e=>{const b=e.target.closest('[data-delete]');if(b){const p=state.people.find(x=>x.id===b.dataset.delete);if(p&&confirm(`حذف ${p.name} وجميع صوره من هذا المتصفح؟`)){state.people=state.people.filter(x=>x.id!==p.id);save();render();toast('تم حذف الفرد.')}}});
+function render(){const root=$('people');root.innerHTML='';const people=state.people.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));if(!people.length){root.innerHTML='<div class="empty">ما لقينا فرد بهذا الاسم.</div>';updateStats();return;}people.forEach((p,index)=>{const card=document.createElement('article');card.className='person';card.innerHTML=`<div class="person-head"><div class="avatar">♙</div><div class="person-name"><input aria-label="اسم الفرد" value="${esc(p.name)}" data-name="${p.id}" maxlength="60"><small>فرد العائلة ${state.people.indexOf(p)+1}</small></div>${state.people.length>1?`<button class="icon-btn" title="حذف الفرد" aria-label="حذف الفرد" data-delete="${p.id}">×</button>`:''}</div><div class="docs">${docs.map(d=>{const src=p.docs[d[0]]||'';return `<label class="doc ${src?'has-image':''}" title="${d[1]} -${d[2]}"><input type="file" accept="image/*" data-person="${p.id}" data-doc="${d[0]}"><img alt="معاينة ${d[1]} ${d[2]}" ${src?`src="${src}"`:''}><span class="placeholder"><span class="glyph">${d[3]}</span><strong>${d[1]}</strong><small>${d[2]}</small></span></label>`}).join('')}</div>`;root.appendChild(card)});updateStats();}
+$('people').addEventListener('change',e=>{const input=e.target;if(input.matches('input[type=file][data-person]')){const file=input.files&&input.files[0];if(!file)return;if(!file.type.startsWith('image/')){toast('اختَر ملف صورة من فضلك.');return;}if(file.size>12*1024*1024){toast('الصورة أكبر من 12 ميغابايت. اختَر صورة أصغر.');return;}const p=state.people.find(x=>x.id===input.dataset.person);if(!p)return;const reader=new FileReader();reader.onload=()=>{p.docs[input.dataset.doc]=reader.result;save();render();toast('تمت إضافة الصورة وحفظها.');};reader.onerror=()=>toast('تعذرت قراءة الصورة.');reader.readAsDataURL(file)}});
+$('people').addEventListener('input',e=>{if(e.target.matches('[data-name]')){const p=state.people.find(x=>x.id===e.target.dataset.name);if(p){p.name=e.target.value;save();}}});$('people').addEventListener('click',e=>{const b=e.target.closest('[data-delete]');if(b){const p=state.people.find(x=>x.id===b.dataset.delete);if(p&&confirm(`حذف ${p.name} وجميع صوره؟`)){state.people=state.people.filter(x=>x.id!==p.id);save();render();toast('تم حذف الفرد.')}}});
 $('addPerson').onclick=()=>{if(state.people.length>=12){toast('وصلت إلى الحد الأقصى وهو 12 فردًا.');return;}state.people.push({id:makeId(),name:`فرد العائلة ${state.people.length+1}`,docs:{}});save();render();toast('تمت إضافة فرد جديد.');window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});};
 $('search').addEventListener('input',e=>{search=e.target.value;render()});$('clearSearch').onclick=()=>{$('search').value='';search='';render()};
-function download(name,content,type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
-$('backupBtn').onclick=$('exportBtn').onclick=()=>{download('mustamsak-pro-backup.json',JSON.stringify({app:'Mustamsak Pro',version:1,exportedAt:new Date().toISOString(),...state}), 'application/json');toast('تم تجهيز ملف النسخة الاحتياطية. احتفظ به بمكان آمن.');};
-$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.people)||!confirm('الاستعادة ستستبدل البيانات الحالية. هل لديك نسخة احتياطية منها؟ متابعة؟'))return;state={people:data.people.map(p=>({id:p.id||makeId(),name:String(p.name||'فرد العائلة'),docs:p.docs&&typeof p.docs==='object'?p.docs:{}})).slice(0,12)};save();render();toast('تمت استعادة البيانات.');}catch(err){toast('الملف غير صالح أو ليس نسخة احتياطية لمستمسك برو.')}e.target.value='';};
+
+// تعديل التنزيل ليعمل بكفاءة على متصفحات الهواتف
+function download(name,content,type){
+    const blob=new Blob([content],{type});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.style.display = 'none';
+    a.href=url;
+    a.download=name;
+    document.body.appendChild(a); // تفعيل عنصر التنزيل
+    a.click();
+    setTimeout(()=>{
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },1500)
+}
+
+$('backupBtn').onclick=$('exportBtn').onclick=()=>{download('mustamsak-pro-backup.json',JSON.stringify({app:'Mustamsak Pro',version:1,exportedAt:new Date().toISOString(),...state}), 'application/json');toast('تم تجهيز ملف النسخة الاحتياطية وتصديره بنجاح.');};
+
+$('restoreBtn').onclick=()=>$('restoreFile').click();$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.people)||!confirm('الاستعادة ستستبدل البيانات الحالية. متابعة؟'))return;state={people:data.people.map(p=>({id:p.id||makeId(),name:String(p.name||'فرد العائلة'),docs:p.docs&&typeof p.docs==='object'?p.docs:{}})).slice(0,12)};save();render();toast('تمت استعادة البيانات.');}catch(err){toast('الملف غير صالح أو ليس نسخة احتياطية.')}e.target.value='';};
+
 $('printBtn').onclick=()=>{if(!state.people.some(p=>Object.values(p.docs||{}).some(Boolean))){toast('أضف صورة مستند واحدة على الأقل قبل الطباعة.');return;}window.print();};
-function openModal(title,text,extra,action){$('modalTitle').textContent=title;$('modalText').textContent=text;$('modalExtra').textContent=extra;$('modalAction').textContent=action||'معلومات';$('modal').classList.add('open')};$('smartBtn').onclick=()=>openModal('الاستلام الذكي عبر QR','زر QR ظاهر، لكن الاستلام الحقيقي يحتاج خدمة مشاركة آمنة أو خادمًا. لا نريد نشر مستمسكات العائلة في رابط عام.','هذا الإصدار يحفظ الصور محليًا على جهازك فقط. يمكن لاحقًا إضافة QR لاستيراد/تصدير بيانات غير حساسة أو ربطه بخدمة خاصة آمنة.','فهمت');$('modalAction').onclick=()=>{$('modal').classList.remove('open');};$('closeModal').onclick=()=>$('modal').classList.remove('open');$('modal').onclick=e=>{if(e.target===$('modal'))$('modal').classList.remove('open')};$('year').textContent=new Date().getFullYear();load();
+
+// تعديل الاستلام الذكي ليعمل مباشرة كزر استيراد
+$('smartBtn').onclick=()=>$('restoreFile').click();
+
+$('year').textContent=new Date().getFullYear();load();
 })();
-</script></body></html>
+</script>
+</body>
+</html>
